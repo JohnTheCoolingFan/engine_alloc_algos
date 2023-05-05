@@ -3,7 +3,7 @@ use dyn_stack::{DynStack, GlobalMemBuffer, ReborrowMut};
 use faer_core::{Mat, MatRef, Parallelism};
 use faer_svd::{compute_svd, compute_svd_req, ComputeVectors, SvdParams};
 use glam::{Quat, Vec3};
-use nalgebra::{DVector, Matrix6xX, Vector6};
+use nalgebra::{DVector, Dyn, Matrix, Matrix6xX, RowVector, Vector, Vector6, U1};
 use ndarray::{Array1, Array2};
 use nnls::nnls;
 
@@ -355,6 +355,50 @@ fn solve_faer_svd(thrusts: MatRef<f32>, target: MatRef<f32>) -> Mat<f32> {
     v.transpose().adjoint() * ut_b
 }
 
+fn solve_aipia(thrusts: &Matrix6xX<f32>, target: &Vector6<f32>) -> DVector<f32> {
+    let u_max = 1.0_f32;
+    let mut b_clip = thrusts.clone();
+    let mut u_full = DVector::<f32>::zeros(thrusts.ncols());
+
+    let mut converged = false;
+
+    let mut u_run = DVector::<f32>::zeros(thrusts.ncols());
+
+    while !converged {
+        let b_pseudo = b_clip.clone().pseudo_inverse(f32::EPSILON).unwrap();
+        u_run = b_pseudo * (target - thrusts * &u_full);
+
+        let mut fully_firing = 0;
+        for i in 0..u_run.nrows() {
+            if u_run[i] > u_max {
+                fully_firing += 1;
+                b_clip.fill_column(i, 0.0);
+                u_full[i] = u_max;
+            }
+        }
+
+        if fully_firing == 0 {
+            let mut low_firing = 0;
+            for i in 0..u_run.nrows() {
+                let row_val = u_run[i];
+                if row_val < -f32::EPSILON {
+                    low_firing += 1;
+                    b_clip.fill_column(i, 0.0);
+                }
+            }
+            if low_firing == 0 {
+                converged = true;
+            }
+        }
+
+        if b_clip.iter().all(|e| e == &0.0) {
+            converged = true
+        }
+    }
+
+    u_full + u_run
+}
+
 fn bench_thrust_calculators(c: &mut Criterion) {
     let mut group = c.benchmark_group("Calculate coefficients (minimum L2 norm)");
     for n in 3..=5 {
@@ -363,14 +407,14 @@ fn bench_thrust_calculators(c: &mut Criterion) {
             let nalgebra_input = generate_nalgebra_input(thrusters.clone(), *target);
             group.bench_with_input(
                 BenchmarkId::new(
-                    "nnls",
+                    "Adapted Iterative Pseudoinverse Algorithm",
                     format!(
                         "{} engines per side (force {}; torque {}) target force",
                         n, target.force, target.torque
                     ),
                 ),
                 &nalgebra_input,
-                |b, i| b.iter(|| solve_nnls(&i.0, &i.1)),
+                |b, i| b.iter(|| solve_aipia(&i.0, &i.1)),
             );
             /*
             group.bench_with_input(
