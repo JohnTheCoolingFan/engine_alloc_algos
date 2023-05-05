@@ -381,7 +381,7 @@ fn solve_aipia(thrusts: &Matrix6xX<f32>, target: &Vector6<f32>) -> DVector<f32> 
             let mut low_firing = 0;
             for i in 0..u_run.nrows() {
                 let row_val = u_run[i];
-                if row_val < -f32::EPSILON {
+                if row_val < 0.0 && b_clip.column(i).iter().any(|v| *v != 0.0) {
                     low_firing += 1;
                     b_clip.fill_column(i, 0.0);
                 }
