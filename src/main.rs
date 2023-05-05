@@ -281,6 +281,8 @@ fn solve_aipia(thrusts: &Matrix6xX<f32>, target: &Vector6<f32>) -> DVector<f32> 
             }
             if low_firing == 0 {
                 converged = true;
+            } else {
+                continue;
             }
         }
 
