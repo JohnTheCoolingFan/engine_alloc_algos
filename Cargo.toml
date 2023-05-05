@@ -1,0 +1,21 @@
+[package]
+name = "spaceterious_engine_bench"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+criterion = { version = "0.4", features = ["html_reports"] }
+glam = "0.24"
+nalgebra = "0.32"
+faer-core="0.8"
+faer-svd="0.8"
+faer-qr="0.8"
+dyn-stack = "0.9"
+nnls = "0.3"
+ndarray = "0.15"
+
+[[bench]]
+name = "engine_solving_test"
+harness = false
